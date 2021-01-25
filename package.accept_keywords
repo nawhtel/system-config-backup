@@ -1,0 +1,11 @@
+dev-lang/mlton ~amd64
+dev-lang/smlnj ~amd64
+dev-lang/polyml ~amd64
+dev-lang/ocaml ~amd64
+sci-mathematics/coq ~amd64
+dev-ml/lablgtk ~amd64
+dev-ml/lablgtk-sourceview ~amd64
+sci-mathematics/sha1-polyml ~amd64
+app-editors/emacs ~amd64
+net-im/zoom ~amd64
+*/*::haskell ~amd64

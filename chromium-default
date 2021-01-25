@@ -1,0 +1,3 @@
+export TZ='Etc/UTC'
+
+CHROMIUM_FLAGS="--disk-cache-dir=/tmp/cache --show-avatar-button=never --force-dark-mode --enable-features=WebUIdarkmode --enable-oop-rasterization --ignore-gpu-blacklist --enable-gpu-rasterization --enable-zero-copy --use-gl=desktop"
