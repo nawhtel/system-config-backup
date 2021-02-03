@@ -9,12 +9,19 @@ import Data.Time
 
 import Graphics.X11.ExtraTypes.XF86
 
+import XMonad.Layout.ResizableTile
 import XMonad.Layout.MouseResizableTile
 import XMonad.Layout.TwoPanePersistent
 import XMonad.Layout.Tabbed
 import XMonad.Layout.Spacing
+import XMonad.Layout.NoBorders
+import XMonad.Layout.Drawer
 
 import XMonad.Actions.GridSelect
+import XMonad.Actions.WindowBringer
+import XMonad.Actions.WithAll
+import XMonad.Actions.Promote
+import XMonad.Actions.MouseGestures
 import XMonad.Hooks.EwmhDesktops
 
 import XMonad.Util.SpawnOnce
@@ -26,15 +33,20 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
 
     -- launch dmenu
     , ((modm,               xK_p     ), spawn "dmenu_run")
-    , ((modm .|. shiftMask, xK_p), spawn "passmenu --type")
+    , ((modm .|. shiftMask, xK_p     ), spawn "passmenu --type")
+    , ((modm,               xK_b     ), gotoMenu)
+    , ((modm .|. shiftMask, xK_b     ), bringMenu)
     , ((modm, xK_g), goToSelected def)
 
     , ((modm,  xK_w), spawn "chromium")
     , ((modm,  xK_z), spawn "zathura")
+    , ((modm,  xK_r), spawn "rox")
     , ((modm,  xK_e), spawn "emacsclient -a \"\" -c")
     , ((modm,  xK_d), spawn "emacsclient -a \"\" -c -e \"(dired \\\"~/\\\")\"")
-    , ((modm,  xK_s), spawn "emacsclient -a \"\" -c -e \"(eshell-new)\"")
-    
+    , ((modm,  xK_s), spawn "emacsclient -a \"\" -c -e \"(vterm)\"")
+
+    , ((modm .|. shiftMask, xK_t), sinkAll)
+
     , ((0, xF86XK_AudioRaiseVolume), spawn "amixer -q set Master 2+")
     , ((0, xF86XK_AudioLowerVolume), spawn "amixer -q set Master 2-")
     , ((0, xF86XK_AudioMute), spawn "amixer -q set Master toggle")
@@ -51,14 +63,17 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
     -- Resize viewed windows to the correct size
     , ((modm,               xK_n     ), refresh)
     , ((modm,               xK_Tab   ), windows W.focusDown)
+    , ((modm,               xK_o   ), windows W.focusUp)
     , ((modm,               xK_j     ), windows W.focusDown)
-    , ((modm,               xK_k     ), windows W.focusUp  )
-    , ((modm,               xK_m     ), windows W.focusMaster  )
-    , ((modm,               xK_Return), windows W.swapMaster)
-    , ((modm .|. shiftMask, xK_j     ), windows W.swapDown  )
-    , ((modm .|. shiftMask, xK_k     ), windows W.swapUp    )
+    , ((modm,               xK_k     ), windows W.focusUp)
+    , ((modm,               xK_m     ), windows W.focusMaster)
+    , ((modm,               xK_Return), promote)
+    , ((modm .|. shiftMask, xK_j     ), windows W.swapDown)
+    , ((modm .|. shiftMask, xK_k     ), windows W.swapUp)
     , ((modm,               xK_h     ), sendMessage Shrink)
+    , ((modm .|. shiftMask, xK_h     ), sendMessage ShrinkSlave)
     , ((modm,               xK_l     ), sendMessage Expand)
+    , ((modm .|. shiftMask, xK_l     ), sendMessage ExpandSlave)
 
     -- Push window back into tiling
     , ((modm,               xK_t     ), withFocused $ windows . W.sink)
@@ -80,7 +95,6 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
     -- , ((modm .|. shiftMask, xK_slash ), spawn ("echo \"" ++ help ++ "\" | xmessage -file -"))
     ]
     ++
-
     --
     -- mod-[1..9], Switch to workspace N
     -- mod-shift-[1..9], Move client to workspace N
@@ -97,6 +111,13 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
     -- [((m .|. modm, key), screenWorkspace sc >>= flip whenJust (windows . f))
     --     | (key, sc) <- zip [xK_w, xK_e, xK_r] [0..]
     --     , (f, m) <- [(W.view, 0), (W.shift, shiftMask)]]
+gestures = M.fromList
+  [ ([], focus)
+  , ([U], \w -> focus w >> windows W.swapUp)
+  , ([D], \w -> focus w >> windows W.swapDown)
+  , ([R, D], \_ -> sendMessage NextLayout)
+  ]
+
 myMouseBindings (XConfig {XMonad.modMask = modm}) = M.fromList $
     -- mod-button1, Set the window to floating mode and move by dragging
     [ ((modm, button1), (\w -> focus w >> mouseMoveWindow w
@@ -106,6 +127,8 @@ myMouseBindings (XConfig {XMonad.modMask = modm}) = M.fromList $
     -- mod-button3, Set the window to floating mode and resize by dragging
     , ((modm, button3), (\w -> focus w >> mouseResizeWindow w
                                        >> windows W.shiftMaster))
+    , ((modm .|. shiftMask, button3), mouseGesture gestures)
+
     -- you may also bind events to the mouse scroll wheel (button4 and button5)
     ]
 
@@ -120,10 +143,13 @@ myMouseBindings (XConfig {XMonad.modMask = modm}) = M.fromList $
 -- The available layouts.  Note that each layout is separated by |||,
 -- which denotes layout choice.
 
-myLayout = spacingRaw True (Border 0 10 10 10) False (Border 10 10 10 10) True $
-           mouseResizableTile{ nmaster = 2, draggerType = BordersDragger}
-           ||| TwoPanePersistent Nothing (3/100) (1/2)
+myLayout = lessBorders (Combine Difference Screen OnlyScreenFloat) $
+           spacingRaw True (Border 10 10 5 10) True (Border 2 2 2 2) True $
+           simpleDrawer 0.003 0.4 drawApps `onRight` tiled
            ||| tabbed shrinkText def { decoHeight = 15 }
+           ||| TwoPanePersistent Nothing (3/100) (1/2)
+  where drawApps = ClassName "XTerm" `Or` ClassName "Xchat"
+        tiled = mouseResizableTile{ masterFrac = 0.5, draggerType = FixedDragger 8 8}
 
 ------------------------------------------------------------------------
 -- Window rules:
@@ -164,7 +190,7 @@ myEventHook = handleEventHook def <+> fullscreenEventHook
 -- See the 'XMonad.Hooks.DynamicLog' extension for examples.
 --
 myLogHook = return ()
- 
+
 ------------------------------------------------------------------------
 -- Startup hook
 
@@ -187,20 +213,23 @@ boogieWallpaper = wallToPath . daytWall . dayOfWeek . utctDay <$> getCurrentTime
 myStartupHook = do
   wallpaperPath <- liftIO boogieWallpaper
   spawn $ "feh --bg-scale " ++ wallpaperPath
-  spawn $ "~/.fehbg &"
   setDefaultCursor xC_left_ptr
   spawnOnce "emacs --daemon &"
-  spawnOnce "xcompmgr -cf -t-9 -l-11 -r9 -o.95 -I 0.028 -D 5 &"
+  spawnOnce "compton -cf -t-9 -l-11 -r9 -o.95 -I 0.028 -D 5 &"
   spawnOnce "xset r rate 250 30"
+  spawnOnce "xautolock -time 30 -locker \"sudo loginctl suspend\" -detectsleep"
 
 main = xmonad $ ewmh def {
     -- simple stuff
-    terminal           = "st",
+    terminal           = "xterm",
     focusFollowsMouse  = True,
     clickJustFocuses   = False,
     modMask            = mod4Mask,
     workspaces         = ["1","2","3","4","5","6","7","8","9"],
-    borderWidth        = 0,
+    borderWidth        = 1,
+    normalBorderColor  = "gray",
+    focusedBorderColor = "#116688",
+    
     -- key bindings
     keys               = myKeys,
     mouseBindings      = myMouseBindings,
