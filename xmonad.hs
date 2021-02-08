@@ -9,13 +9,23 @@ import Data.Time
 
 import Graphics.X11.ExtraTypes.XF86
 
-import XMonad.Layout.ResizableTile
 import XMonad.Layout.MouseResizableTile
 import XMonad.Layout.TwoPanePersistent
 import XMonad.Layout.Tabbed
 import XMonad.Layout.Spacing
 import XMonad.Layout.NoBorders
 import XMonad.Layout.Drawer
+import XMonad.Layout.DwmStyle
+import XMonad.Layout.Simplest
+import XMonad.Layout.Circle
+import XMonad.Layout.DecorationMadness
+-- import XMonad.Actions.FloatSnap
+-- import qualified XMonad.Actions.FlexibleResize as Flex
+-- import XMonad.Layout.SimpleFloat
+import XMonad.Layout.AvoidFloats
+import XMonad.Layout.DecorationAddons
+import XMonad.Layout.ButtonDecoration
+
 
 import XMonad.Actions.GridSelect
 import XMonad.Actions.WindowBringer
@@ -43,14 +53,20 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
     , ((modm,  xK_r), spawn "rox")
     , ((modm,  xK_e), spawn "emacsclient -a \"\" -c")
     , ((modm,  xK_d), spawn "emacsclient -a \"\" -c -e \"(dired \\\"~/\\\")\"")
-    , ((modm,  xK_s), spawn "emacsclient -a \"\" -c -e \"(vterm)\"")
-
-    , ((modm .|. shiftMask, xK_t), sinkAll)
+    -- , ((modm,  xK_s), spawn "emacsclient -a \"\" -c -e \"(vterm)\"")
 
     , ((0, xF86XK_AudioRaiseVolume), spawn "amixer -q set Master 2+")
     , ((0, xF86XK_AudioLowerVolume), spawn "amixer -q set Master 2-")
     , ((0, xF86XK_AudioMute), spawn "amixer -q set Master toggle")
-
+    -- , ((modm,               xK_Left),  withFocused $ snapMove L Nothing)
+    -- , ((modm,               xK_Right), withFocused $ snapMove R Nothing)
+    -- , ((modm,               xK_Up),    withFocused $ snapMove U Nothing)
+    -- , ((modm,               xK_Down),  withFocused $ snapMove D Nothing)
+    -- , ((modm .|. shiftMask, xK_Left),  withFocused $ snapShrink R Nothing)
+    -- , ((modm .|. shiftMask, xK_Right), withFocused $ snapGrow R Nothing)
+    -- , ((modm .|. shiftMask, xK_Up),    withFocused $ snapShrink D Nothing)
+    -- , ((modm .|. shiftMask, xK_Down),  withFocused $ snapGrow D Nothing)
+    
     -- close focused window
     , ((modm .|. shiftMask, xK_c     ), kill)
 
@@ -61,7 +77,7 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
     , ((modm .|. shiftMask, xK_space ), setLayout $ XMonad.layoutHook conf)
 
     -- Resize viewed windows to the correct size
-    , ((modm,               xK_n     ), refresh)
+    -- , ((modm,               xK_n     ), refresh)
     , ((modm,               xK_Tab   ), windows W.focusDown)
     , ((modm,               xK_o   ), windows W.focusUp)
     , ((modm,               xK_j     ), windows W.focusDown)
@@ -75,8 +91,12 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
     , ((modm,               xK_l     ), sendMessage Expand)
     , ((modm .|. shiftMask, xK_l     ), sendMessage ExpandSlave)
 
+    ,((modm .|. shiftMask, xK_b), sendMessage AvoidFloatToggle)
+    ,((modm .|. controlMask, xK_b), withFocused $ sendMessage . AvoidFloatToggleItem)
+    ,((modm .|. shiftMask .|. controlMask, xK_b), sendMessage (AvoidFloatSet False) >> sendMessage AvoidFloatClearItems)
     -- Push window back into tiling
     , ((modm,               xK_t     ), withFocused $ windows . W.sink)
+    , ((modm .|. shiftMask, xK_t), sinkAll)
     , ((modm              , xK_comma ), sendMessage (IncMasterN 1))
     , ((modm              , xK_period), sendMessage (IncMasterN (-1)))
 
@@ -127,9 +147,16 @@ myMouseBindings (XConfig {XMonad.modMask = modm}) = M.fromList $
     -- mod-button3, Set the window to floating mode and resize by dragging
     , ((modm, button3), (\w -> focus w >> mouseResizeWindow w
                                        >> windows W.shiftMaster))
-    , ((modm .|. shiftMask, button3), mouseGesture gestures)
-
-    -- you may also bind events to the mouse scroll wheel (button4 and button5)
+    -- , ((modm, button3), (\w -> focus w >> Flex.mouseResizeWindow w))
+      
+    -- , ((modm .|. shiftMask, button3), mouseGesture gestures)
+    -- -- , ((modm,               button1), (\w -> focus w >> mouseMoveWindow w >> afterDrag (snapMagicMove (Just 50) (Just 50) w)))
+    -- -- , ((modm .|. shiftMask, button1), (\w -> focus w >> mouseMoveWindow w >> afterDrag (snapMagicResize [L,R,U,D] (Just 50) (Just 50) w)))
+    -- -- , ((modm,               button3), (\w -> focus w >> mouseResizeWindow w >> afterDrag (snapMagicResize [R,D] (Just 50) (Just 50) w)))
+    --    , ((modm,               button1), (\w -> focus w >> mouseMoveWindow w >> ifClick (snapMagicMove (Just 50) (Just 50) w)))
+    --    , ((modm .|. shiftMask, button1), (\w -> focus w >> mouseMoveWindow w >> ifClick (snapMagicResize [L,R,U,D] (Just 50) (Just 50) w)))
+    --    , ((modm,               button3), (\w -> focus w >> mouseResizeWindow w >> ifClick (snapMagicResize [R,D] (Just 50) (Just 50) w)))    
+    -- -- you may also bind events to the mouse scroll wheel (button4 and button5)
     ]
 
 ------------------------------------------------------------------------
@@ -145,9 +172,11 @@ myMouseBindings (XConfig {XMonad.modMask = modm}) = M.fromList $
 
 myLayout = lessBorders (Combine Difference Screen OnlyScreenFloat) $
            spacingRaw True (Border 10 10 5 10) True (Border 2 2 2 2) True $
-           simpleDrawer 0.003 0.4 drawApps `onRight` tiled
-           ||| tabbed shrinkText def { decoHeight = 15 }
+           -- dwmStyle shrinkText def $
+           -- avoidFloats(simpleDrawer 0.003 0.4 drawApps `onRight` tiled)
+           avoidFloats' 100 100 True tiled
            ||| TwoPanePersistent Nothing (3/100) (1/2)
+           ||| avoidFloats' 100 100 True Full
   where drawApps = ClassName "XTerm" `Or` ClassName "Xchat"
         tiled = mouseResizableTile{ masterFrac = 0.5, draggerType = FixedDragger 8 8}
 
@@ -222,14 +251,14 @@ myStartupHook = do
 main = xmonad $ ewmh def {
     -- simple stuff
     terminal           = "xterm",
-    focusFollowsMouse  = True,
+    focusFollowsMouse  = False,
     clickJustFocuses   = False,
     modMask            = mod4Mask,
     workspaces         = ["1","2","3","4","5","6","7","8","9"],
     borderWidth        = 1,
     normalBorderColor  = "gray",
     focusedBorderColor = "#116688",
-    
+
     -- key bindings
     keys               = myKeys,
     mouseBindings      = myMouseBindings,
